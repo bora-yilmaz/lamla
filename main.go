@@ -239,21 +239,36 @@ func gvfe(n rune, scope *LScope, ce Expr) Function {
 			return val
 		}
 	}
-	fmt.Println("Error in :", prex(ce))
+	var cure Expr
+	cure = ce
+	if cure.t == Assign {
+		cure = cure.children[1]
+	}
+	if cure.t == Print {
+		cure = cure.children[0]
+	}
+	
+	fmt.Println("Error in :", prex(false, cure, &LScope{sltg: make([]*Scope, 0)}, ce))
 	panic("undefined variable " + string(n))
 }
 
-func printify(f Function) string {
-	return "! " + string(f.argname) + ". " + prex(f.expr)
+func printify(f Function, scope *LScope, cure Expr, un ...rune) string {
+	un = append(un, f.argname)
+	scope.sltg = append(scope.sltg, &f.ds)
+	return "! " + string(f.argname) + ". " + prex(true, f.expr, scope, cure, un...)
 }
 
-func prex(e Expr) string {
+func prex(ev bool, e Expr, scope *LScope, cure Expr, un ...rune) string {
 	if e.t == Func {
-		return "! " + string(e.children[0].char) + ". " + prex(e.children[1])
+		un = append(un, e.children[0].char)
+		return "! " + string(e.children[0].char) + ". " + prex(ev, e.children[1], scope, cure, un...)
 	} else if e.t == Call {
-		return "( " + prex(e.children[0]) + " " + prex(e.children[1]) + " )"
+		return "( " + prex(ev, e.children[0], scope, cure, un...) + " " + prex(ev, e.children[1], scope, cure, un...) + " )"
 	} else if e.t == Var {
-		return string(e.char)
+		if slices.Contains(un, e.char) || !ev {
+			return string(e.char)
+		}
+		return printify(evalexpr(e, scope, cure), scope, cure, un...)
 	}
 	fmt.Println(e.t)
 	panic("interpreter internal error 1")
@@ -264,11 +279,11 @@ func runapexpr(e Expr, scope *LScope, out []string) []string {
 		(*scope).sltg[len((*scope).sltg)-1].vars[e.children[0].char] = evalexpr(e.children[1], scope, e.children[1])
 		return out
 	} else if e.t == Print {
-		o := printify(evalexpr(e.children[0], scope, e.children[0]))
+		o := printify(evalexpr(e.children[0], scope, e.children[0]), scope, e)
 		fmt.Println(o)
 		return append(out, o)
 	}
-	fmt.Println(prex(e))
+	fmt.Println(prex(false, e, scope, e.children[1]))
 	panic("statement has no effect on program")
 }
 
